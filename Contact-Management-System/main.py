@@ -2,36 +2,39 @@ import json
 import os
 
 
+# ==================== FILE CONFIGURATION ====================
+
+FILE_NAME = "details.json"
+
+
 # ==================== LOAD DATA ====================
 
 def load_data():
-    if os.path.exists("details.json"):
-        with open("details.json", "r") as file:
+    if not os.path.exists(FILE_NAME):
+        return {}
+
+    try:
+        with open(FILE_NAME, "r") as file:
             return json.load(file)
 
-    return {}
+    except json.JSONDecodeError:
+        return {}
 
 
 # ==================== SAVE DATA ====================
 
 def save_data(details):
-    with open("details.json", "w") as file:
+    with open(FILE_NAME, "w") as file:
         json.dump(details, file, indent=4)
 
 
-# ==================== CREATE ACCOUNT ====================
+# ==================== PASSWORD VALIDATION ====================
 
-def create_account(details):
-    user_id = input("Enter User ID: ")
-
-    if user_id in details:
-        print("User ID already exists!")
-        return
-
+def validate_password():
     while True:
         password = input("Create a strong password: ")
 
-        # Password length validation
+        # Check password length
         if len(password) < 8 or len(password) > 12:
             print("Password must be between 8 and 12 characters.")
             continue
@@ -60,6 +63,18 @@ def create_account(details):
             print("Password must contain at least one uppercase letter.")
             continue
 
+        # Check for at least one lowercase letter
+        has_lower = False
+
+        for char in password:
+            if char.islower():
+                has_lower = True
+                break
+
+        if not has_lower:
+            print("Password must contain at least one lowercase letter.")
+            continue
+
         # Check for at least one special character
         has_special = False
 
@@ -72,10 +87,24 @@ def create_account(details):
             print("Password must contain at least one special character.")
             continue
 
-        print("Password is valid!")
-        break
+        return password
 
-    # Store account details
+
+# ==================== CREATE ACCOUNT ====================
+
+def create_account(details):
+    user_id = input("Enter User ID: ").strip()
+
+    if not user_id:
+        print("User ID cannot be empty.")
+        return
+
+    if user_id in details:
+        print("User ID already exists.")
+        return
+
+    password = validate_password()
+
     details[user_id] = {
         "password": password,
         "contacts": {}
@@ -89,120 +118,223 @@ def create_account(details):
 # ==================== LOGIN ====================
 
 def login(details):
-    user_id = input("Enter your User ID: ")
+    user_id = input("Enter your User ID: ").strip()
 
     if user_id not in details:
-        print("User not found!")
+        print("User not found.")
         return
 
-    attempt = 1
-    login_success = False
+    max_attempts = 3
 
-    while attempt <= 3:
+    for attempt in range(1, max_attempts + 1):
         password = input("Enter your password: ")
 
         if password == details[user_id]["password"]:
             print("Login successful!")
-            login_success = True
-            break
+            contact_menu(details, user_id)
+            return
 
-        print("Incorrect password!")
-        print("Attempts remaining:", 3 - attempt)
+        remaining_attempts = max_attempts - attempt
 
-        attempt += 1
+        print("Incorrect password.")
 
-    if not login_success:
-        print("Too many failed attempts!")
-        print("Login blocked!")
-        return
+        if remaining_attempts > 0:
+            print(f"Attempts remaining: {remaining_attempts}")
 
-    contact_menu(details, user_id)
+    print("Too many failed attempts. Login blocked.")
 
 
 # ==================== ADD CONTACT ====================
 
 def add_contact(details, user_id):
+    contacts = details[user_id]["contacts"]
 
     while True:
-        name = input("Enter contact name: ")
+        name = input("Enter contact name: ").strip()
 
-        if name in details[user_id]["contacts"]:
-            print("Contact already exists!")
+        if not name:
+            print("Contact name cannot be empty.")
             continue
 
-        phone_number = input("Enter phone number: ")
+        if name in contacts:
+            print("Contact already exists. Please enter a different name.")
+            continue
 
-        details[user_id]["contacts"][name] = phone_number
+        phone_number = input("Enter phone number: ").strip()
+
+        if not phone_number:
+            print("Phone number cannot be empty.")
+            continue
+
+        contacts[name] = phone_number
 
         save_data(details)
 
         print("Contact saved successfully!")
-        break
+        return
 
 
 # ==================== VIEW CONTACTS ====================
 
 def view_contacts(details, user_id):
+    contacts = details[user_id]["contacts"]
 
-    if not details[user_id]["contacts"]:
-        print("No contacts found!")
+    if not contacts:
+        print("No contacts found.")
+        return
 
+    print("\n===== YOUR CONTACTS =====")
+
+    for number, (name, phone) in enumerate(contacts.items(), start=1):
+        print(f"{number}. {name}: {phone}")
+
+
+# ==================== SEARCH CONTACT ====================
+
+def search_contact(details, user_id):
+    contacts = details[user_id]["contacts"]
+
+    if not contacts:
+        print("No contacts available to search.")
+        return
+
+    search_name = input("Enter the contact name to search: ").strip()
+
+    if search_name in contacts:
+        print(f"Contact found: {search_name} - {contacts[search_name]}")
     else:
-        print("\n===== Your Contacts =====")
-
-        for name, phone in details[user_id]["contacts"].items():
-            print(name, ":", phone)
+        print("Contact not found.")
 
 
 # ==================== UPDATE CONTACT ====================
 
 def update_contact(details, user_id):
+    contacts = details[user_id]["contacts"]
 
-    name = input("Enter contact name: ")
+    if not contacts:
+        print("No contacts available to update.")
+        return
 
-    if name not in details[user_id]["contacts"]:
-        print("Contact not found!")
+    name = input("Enter the contact name to update: ").strip()
 
-    else:
-        new_phone_number = input("Enter new phone number: ")
+    if name not in contacts:
+        print("Contact not found.")
+        return
 
-        details[user_id]["contacts"][name] = new_phone_number
+    new_phone_number = input("Enter the new phone number: ").strip()
 
-        save_data(details)
+    if not new_phone_number:
+        print("Phone number cannot be empty.")
+        return
 
-        print("Contact updated successfully!")
+    contacts[name] = new_phone_number
+
+    save_data(details)
+
+    print("Contact updated successfully!")
 
 
 # ==================== DELETE CONTACT ====================
 
 def delete_contact(details, user_id):
+    contacts = details[user_id]["contacts"]
 
-    name = input("Enter contact name: ")
+    if not contacts:
+        print("No contacts available to delete.")
+        return
 
-    if name not in details[user_id]["contacts"]:
-        print("Contact not found!")
+    name = input("Enter the contact name to delete: ").strip()
 
-    else:
-        del details[user_id]["contacts"][name]
+    if name not in contacts:
+        print("Contact not found.")
+        return
+
+    # Confirmation
+    confirm = input(
+        f"Are you sure you want to delete {name}? (yes/no): "
+    ).strip().lower()
+
+    if confirm == "yes":
+        del contacts[name]
 
         save_data(details)
 
         print("Contact deleted successfully!")
 
+    else:
+        print("Contact deletion cancelled.")
+
+
+# ==================== CHANGE PASSWORD ====================
+
+def change_password(details, user_id):
+    current_password = input("Enter your current password: ")
+
+    if current_password != details[user_id]["password"]:
+        print("Incorrect password.")
+        return
+
+    print("Create a new password.")
+    new_password = validate_password()
+
+    details[user_id]["password"] = new_password
+
+    save_data(details)
+
+    print("Password changed successfully!")
+
+
+# ==================== DELETE ACCOUNT ====================
+
+def delete_account(details, user_id):
+    password = input(
+        "Enter your password to delete your account: "
+    )
+
+    if password != details[user_id]["password"]:
+        print("Incorrect password. Account deletion cancelled.")
+        return False
+
+    print("\nWARNING: This will permanently delete your account and all contacts.")
+
+    confirm = input(
+        "Are you sure you want to continue? (yes/no): "
+    ).strip().lower()
+
+    if confirm != "yes":
+        print("Account deletion cancelled.")
+        return False
+
+    del details[user_id]
+
+    save_data(details)
+
+    print("Account deleted successfully!")
+    print("You have been logged out.")
+
+    return True
+
 
 # ==================== CONTACT MENU ====================
 
 def contact_menu(details, user_id):
-
     while True:
-        print("\n===== Contact Management =====")
+        print("\n===== CONTACT MANAGEMENT =====")
         print("1. Add Contact")
         print("2. View Contacts")
-        print("3. Update Contact")
-        print("4. Delete Contact")
-        print("5. Logout")
+        print("3. Search Contact")
+        print("4. Update Contact")
+        print("5. Delete Contact")
+        print("6. Change Password")
+        print("7. Delete Account")
+        print("8. Logout")
 
-        contact_choice = int(input("Enter your choice: "))
+        try:
+            contact_choice = int(input("Enter your choice: "))
+
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            continue
 
         if contact_choice == 1:
             add_contact(details, user_id)
@@ -211,40 +343,64 @@ def contact_menu(details, user_id):
             view_contacts(details, user_id)
 
         elif contact_choice == 3:
-            update_contact(details, user_id)
+            search_contact(details, user_id)
 
         elif contact_choice == 4:
-            delete_contact(details, user_id)
+            update_contact(details, user_id)
 
         elif contact_choice == 5:
+            delete_contact(details, user_id)
+
+        elif contact_choice == 6:
+            change_password(details, user_id)
+
+        elif contact_choice == 7:
+            account_deleted = delete_account(details, user_id)
+
+            if account_deleted:
+                break
+
+        elif contact_choice == 8:
             print("Logged out successfully!")
             break
 
         else:
-            print("Invalid choice! Please try again.")
+            print("Invalid choice. Please select a valid option.")
 
 
 # ==================== MAIN PROGRAM ====================
 
-details = load_data()
+def main():
+    details = load_data()
 
-while True:
-    print("\n===== Contact Management System =====")
-    print("1. Create Account")
-    print("2. Login")
-    print("3. Exit")
+    while True:
+        print("\n===== CONTACT MANAGEMENT SYSTEM =====")
+        print("1. Create Account")
+        print("2. Login")
+        print("3. Exit")
 
-    choice = int(input("Enter your choice: "))
+        try:
+            choice = int(input("Enter your choice: "))
 
-    if choice == 1:
-        create_account(details)
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            continue
 
-    elif choice == 2:
-        login(details)
+        if choice == 1:
+            create_account(details)
 
-    elif choice == 3:
-        print("Thank you for using the Contact Management System!")
-        break
+        elif choice == 2:
+            login(details)
 
-    else:
-        print("Invalid choice! Please try again.")
+        elif choice == 3:
+            print("Thank you for using the Contact Management System!")
+            break
+
+        else:
+            print("Invalid choice. Please select a valid option.")
+
+
+# ==================== START PROGRAM ====================
+
+if __name__ == "__main__":
+    main()
