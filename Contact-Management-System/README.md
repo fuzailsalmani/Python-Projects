@@ -100,7 +100,6 @@ Example JSON structure:
 Contact-Management-System/
 │
 ├── main.py
-├── details.json
 └── README.md
 ```
 
